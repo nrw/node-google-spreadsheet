@@ -129,7 +129,7 @@ function GoogleSpreadsheet (ssKey, authId, options) {
           if (method === 'GET' && queryOrData) {
             url += '?' + querystring.stringify(queryOrData)
           }
-
+          console.log('querying url', url)
           request({
             url: url,
             method: method,
@@ -282,7 +282,9 @@ function SpreadsheetWorksheet (spreadsheet, data) {
 
 function SpreadsheetRow (spreadsheet, data, xml) {
   var self = this
-  self['_xml'] = xml
+
+  setNonEnumerable(self, '_xml', xml)
+
   Object.keys(data).forEach(function (key) {
     var val = data[key]
     if (key.substring(0, 4) === 'gsx:') {
@@ -295,12 +297,13 @@ function SpreadsheetRow (spreadsheet, data, xml) {
         self[key.substring(4)] = val
       }
     } else {
-      if (key === 'id') {
-        self[key] = val
+      if (key === 'id' || key === 'content') {
+        setNonEnumerable(self, key, val)
       } else if (val['_']) {
         self[key] = val['_']
       } else if (key === 'link') {
-        self['_links'] = []
+        setNonEnumerable(self, '_links', [])
+
         val = forceArray(val)
         val.forEach(function (link) {
           self._links[link['$']['rel']] = link['$']['href']
@@ -309,7 +312,10 @@ function SpreadsheetRow (spreadsheet, data, xml) {
     }
   }, this)
 
-  self.save = function (cb) {
+  setNonEnumerable(self, 'save', save)
+  setNonEnumerable(self, 'del', del)
+
+  function save (cb) {
     /*
     API for edits is very strict with the XML it accepts
     So we just do a find replace on the original XML.
@@ -326,12 +332,12 @@ function SpreadsheetRow (spreadsheet, data, xml) {
     })
     spreadsheet.makeFeedRequest(self._links.edit, 'PUT', dataXml, cb)
   }
-  self.del = function (cb) {
+  function del (cb) {
     return spreadsheet.makeFeedRequest(self._links.edit, 'DELETE', null).nodeify(cb)
   }
 }
 
-var SpreadsheetCell = function (spreadsheet, worksheetId, data) {
+function SpreadsheetCell (spreadsheet, worksheetId, data) {
   var self = this
   var cell = data['gs:cell']
 
@@ -341,7 +347,8 @@ var SpreadsheetCell = function (spreadsheet, worksheetId, data) {
   self.value = cell._
   self.numericValue = cell.$.numericValue
 
-  self['_links'] = []
+  setNonEnumerable(self, '_links', [])
+
   var links = forceArray(data.link)
   links.forEach(function (link) {
     self._links[link['$']['rel']] = link['$']['href']
@@ -393,4 +400,13 @@ var xmlSafeColumnName = function (val) {
   if (!val) return ''
   return String(val).replace(/[\s_]+/g, '')
     .toLowerCase()
+}
+
+function setNonEnumerable (object, key, value) {
+  Object.defineProperty(object, key, {
+    value: value,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  })
 }

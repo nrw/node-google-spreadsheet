@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "async": "~0.2.9",
-    "nodeunit": "~0.8.2",
     "tape": "^4.2.0"
   },
   "scripts": {
